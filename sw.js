@@ -1,1 +1,8 @@
-const C='tony-obras-v5',A=['./','index.html','style.css?v=5','app.js?v=5','manifest.json','icon.svg'];self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(A)).catch(()=>{}))});self.addEventListener('activate',e=>e.waitUntil(Promise.all([self.clients.claim(),caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x))))])));self.addEventListener('fetch',e=>{const r=e.request;if(r.method!=='GET')return;if(r.mode==='navigate')return e.respondWith(fetch(r).then(res=>{caches.open(C).then(c=>c.put(r,res.clone()));return res}).catch(()=>caches.match('./')));if(/\.(html|css|js|json)$/.test(new URL(r.url).pathname))return e.respondWith(fetch(r).then(res=>{caches.open(C).then(c=>c.put(r,res.clone()));return res}).catch(()=>caches.match(r)));e.respondWith(caches.match(r).then(h=>h||fetch(r)))});
+const C='tony-obras-v6',A=['./','index.html','style.css?v=6','app.js?v=6','manifest.json'];
+self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(A)).catch(()=>{}))});
+self.addEventListener('activate',e=>e.waitUntil(Promise.all([self.clients.claim(),caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x))))])));
+self.addEventListener('fetch',e=>{const r=e.request;if(r.method!=='GET')return;
+ if(r.url.includes('cdnjs.cloudflare.com'))return;
+ if(r.mode==='navigate')return e.respondWith(fetch(r).then(res=>{caches.open(C).then(c=>c.put(r,res.clone()));return res}).catch(()=>caches.match('./')));
+ if(/\.(html|css|js|json)$/.test(new URL(r.url).pathname))return e.respondWith(fetch(r).then(res=>{caches.open(C).then(c=>c.put(r,res.clone()));return res}).catch(()=>caches.match(r)));
+ e.respondWith(caches.match(r).then(h=>h||fetch(r)))});
