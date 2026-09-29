@@ -1,4 +1,6 @@
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const avisoEl=document.querySelector('#aviso');
+function erro(m){if(avisoEl){avisoEl.textContent=m;avisoEl.classList.remove('hidden')}}
 const seed={config:{adminLogin:'tony',adminSenha:'TONY123',empresa:'Tony Eletricista',responsavel:'Tony',contato:'',instagram:'@tonyeletricistaa'},clientes:[],obras:[],etapas:[],orcamentos:[],midias:[]};
 let db=loadDb(),session=null,page='Painel';
 function loadDb(){let old;try{old=JSON.parse(localStorage.getItem('tony-db')||'null')}catch(e){}
@@ -8,22 +10,25 @@ function loadDb(){let old;try{old=JSON.parse(localStorage.getItem('tony-db')||'n
  d.obras=(d.obras||[]).filter(o=>!/el[eé]trica residencial/i.test(o.nome||''));
  d.etapas=(d.etapas||[]).filter(e=>d.obras.some(o=>o.id===e.obra));
  d.orcamentos=d.orcamentos||[];d.midias=d.midias||[];return d}
-const save=()=>{try{localStorage.setItem('tony-db',JSON.stringify(db));return true}catch(e){return false}};
+const save=()=>{try{localStorage.setItem('tony-db',JSON.stringify(db));return true}catch(e){erro('O armazenamento do navegador está cheio. Exclua mídias antigas.');return false}};
 const money=n=>(+n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const dataBR=d=>d?String(d).split('-').reverse().join('/'):'';
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const menusAdmin=['Painel','Obras','Etapas','Clientes','Orçamentos','Mídias','Acessos'];
 const menusCli=['Minha obra','Etapas','Fotos e vídeos'];
 function login(e){if(e&&e.preventDefault)e.preventDefault();
- const u=$('#usuario').value.trim().toLowerCase(),s=$('#senha').value;
- if(!u||!s)return alert('Informe login e senha.');
- if(u===String(db.config.adminLogin).toLowerCase()&&s===db.config.adminSenha){session={perfil:'admin'}}
- else{const cli=db.clientes.find(x=>String(x.login||'').toLowerCase()===u&&String(x.senha)===s);
-  if(cli)session={perfil:'cliente',cliente:cli.id};
-  else{$('#senha').value='';return alert('Login ou senha inválidos.')}}
- $('#senha').value='';$('#login').classList.add('hidden');$('#app').classList.remove('hidden');
- renderNav();go(session.perfil==='admin'?'Painel':'Minha obra')}
-function limparCampo(id){const el=$('#'+id);el.value='';el.focus();if(id==='senha')el.type='password'}
+ try{
+  const u=$('#usuario').value.trim().toLowerCase(),s=$('#senha').value;
+  if(!u||!s)return erro('Preencha o login e a senha.');
+  const admin=String(db.config.adminLogin||'tony').toLowerCase(),sen=String(db.config.adminSenha||'TONY123');
+  if(u===admin&&s===sen){session={perfil:'admin'}}
+  else{const cli=db.clientes.find(x=>String(x.login||'').toLowerCase()===u&&String(x.senha)===s);
+   if(cli)session={perfil:'cliente',cliente:cli.id};
+   else{$('#senha').value='';return erro('Login ou senha inválidos. Verifique se digitou sem espaços.')}}
+  if(avisoEl)avisoEl.classList.add('hidden');
+  $('#senha').value='';$('#login').classList.add('hidden');$('#app').classList.remove('hidden');
+  renderNav();go(session.perfil==='admin'?'Painel':'Minha obra')
+ }catch(err){erro('Erro ao entrar: '+err.message)}}
 function logout(){session=null;closeMenu();$('#app').classList.add('hidden');$('#login').classList.remove('hidden');$('#usuario').value='';$('#senha').value='';$('#usuario').focus()}
 function renderNav(){const arr=session.perfil==='admin'?menusAdmin:menusCli;
  $('#nav').innerHTML=arr.map(x=>`<button data-p="${x}">${x}</button>`).join('');
@@ -56,38 +61,37 @@ const clienteNome=id=>db.clientes.find(x=>x.id===id)?.nome||'-';
 const clienteObj=id=>db.clientes.find(x=>x.id===id)||{};
 const obraNome=id=>db.obras.find(x=>x.id===id)?.nome||'-';
 const etapaNome=id=>db.etapas.find(x=>x.id===id)?.nome||'-';
-function uniqueLogin(login,id){return !db.clientes.some(c=>c.id!==id&&String(c.login).toLowerCase()===login.toLowerCase())&&String(db.config.adminLogin).toLowerCase()!==login.toLowerCase()}
-function modal(titulo,corpo,idBotao='salvar',rotulo='Salvar'){document.body.insertAdjacentHTML('beforeend',`<div class="modal"><div class="modal-card"><div class="modal-head"><h3>${titulo}</h3><button id="fecha">✕</button></div>${corpo}<button id="${idBotao}" style="margin-top:18px">${rotulo}</button></div></div>`);$('#fecha').onclick=()=>$('.modal').remove()}
+function uniqueLogin(l,id){return !db.clientes.some(c=>c.id!==id&&String(c.login).toLowerCase()===l.toLowerCase())&&String(db.config.adminLogin).toLowerCase()!==l.toLowerCase()}
+function modal(t,corpo,idBotao='salvar',rotulo='Salvar'){document.body.insertAdjacentHTML('beforeend',`<div class="modal"><div class="modal-card"><div class="modal-head"><h3>${t}</h3><button id="fecha">✕</button></div>${corpo}<button id="${idBotao}" style="margin-top:18px">${rotulo}</button></div></div>`);$('#fecha').onclick=()=>$('.modal').remove()}
 function opcoesClientes(sel){return db.clientes.map(c=>`<option value="${c.id}" ${c.id===sel?'selected':''}>${esc(c.nome)}</option>`).join('')}
 function opcoesObras(sel){return db.obras.map(o=>`<option value="${o.id}" ${o.id===sel?'selected':''}>${esc(o.nome)} — ${esc(clienteNome(o.cliente))}</option>`).join('')}
 function opcoesEtapas(obraId,sel){return db.etapas.filter(e=>!obraId||e.obra===obraId).map(e=>`<option value="${e.id}" ${e.id===sel?'selected':''}>${esc(e.nome)}</option>`).join('')}
-const MODELO_PADRAO=[['Levantamento e projeto',10],['Infraestrutura e eletrodutos',20],['Passagem de cabos',20],['Quadro de distribuição',15],['Tomadas e interruptores',15],['Iluminação',10],['Testes e entrega',10]];
+const MODELO=[['Levantamento e projeto',10],['Infraestrutura e eletrodutos',20],['Passagem de cabos',20],['Quadro de distribuição',15],['Tomadas e interruptores',15],['Iluminação',10],['Testes e entrega',10]];
 function formCliente(id){const c=db.clientes.find(x=>x.id===id)||{};
  modal('Cliente',`<div class="form-grid"><label>Nome<input id="f_nome" value="${esc(c.nome||'')}"></label><label>Telefone<input id="f_tel" value="${esc(c.telefone||'')}"></label><label>E-mail<input id="f_email" value="${esc(c.email||'')}"></label><label>Endereço<input id="f_end" value="${esc(c.endereco||'')}"></label><label>Login personalizado<input id="f_login" value="${esc(c.login||'')}"></label><label>Senha<input id="f_senha" type="password" placeholder="${id?'Deixe vazio para manter':'Crie uma senha'}"></label></div>`);
  $('#salvar').onclick=()=>{const log=$('#f_login').value.trim();
-  if(!$('#f_nome').value.trim()||!log)return alert('Informe nome e login.');
-  if(!uniqueLogin(log,c.id))return alert('Este login já está em uso.');
-  if(!id&&!$('#f_senha').value)return alert('Crie uma senha para o cliente.');
+  if(!$('#f_nome').value.trim()||!log)return erro('Informe o nome e o login do cliente.');
+  if(!uniqueLogin(log,c.id))return erro('Este login já está em uso.');
+  if(!id&&!$('#f_senha').value)return erro('Crie uma senha para o cliente.');
   const x={id:c.id||'CLI-'+Date.now(),nome:$('#f_nome').value.trim(),telefone:$('#f_tel').value,email:$('#f_email').value,endereco:$('#f_end').value,login:log,senha:$('#f_senha').value||c.senha};
   id?Object.assign(c,x):db.clientes.push(x);save();$('.modal').remove();go('Clientes')}}
-function formObra(id){if(!db.clientes.length)return alert('Cadastre um cliente antes de criar a obra.');
+function formObra(id){if(!db.clientes.length)return erro('Cadastre um cliente antes de criar a obra.');
  const o=db.obras.find(x=>x.id===id)||{};
  modal('Obra',`<div class="form-grid"><label>Nome<input id="f_nome" value="${esc(o.nome||'')}"></label><label>Cliente<select id="f_cli">${opcoesClientes(o.cliente)}</select></label><label>Status<select id="f_status">${['Planejamento','Em andamento','Pausada','Concluída'].map(s=>`<option ${s===o.status?'selected':''}>${s}</option>`).join('')}</select></label><label>Valor contratado<input id="f_valor" type="number" step="0.01" value="${o.valor||0}"></label><label>Início<input id="f_ini" type="date" value="${o.inicio||''}"></label><label>Previsão<input id="f_fim" type="date" value="${o.fim||''}"></label><label class="full">Endereço<input id="f_end" value="${esc(o.endereco||'')}"></label><label class="full">Descrição<textarea id="f_desc">${esc(o.descricao||'')}</textarea></label></div>${id?'':`<label style="margin-top:15px;display:flex;gap:8px;align-items:center"><input type="checkbox" id="f_modelo" checked style="width:auto"> Criar etapas padrão de obra elétrica</label>`}`);
- $('#salvar').onclick=()=>{const nome=$('#f_nome').value.trim();if(!nome)return alert('Informe o nome da obra.');
+ $('#salvar').onclick=()=>{const nome=$('#f_nome').value.trim();if(!nome)return erro('Informe o nome da obra.');
   const novoId=o.id||'OBR-'+Date.now();
   const x={id:novoId,cliente:$('#f_cli').value,nome,status:$('#f_status').value,valor:+$('#f_valor').value||0,inicio:$('#f_ini').value,fim:$('#f_fim').value,endereco:$('#f_end').value,descricao:$('#f_desc').value,progresso:o.progresso||0};
-  if(id)Object.assign(o,x);else{db.obras.push(x);
-   const chk=$('#f_modelo');
-   if(chk&&chk.checked)MODELO_PADRAO.forEach(([n,p],i)=>db.etapas.push({id:'ETP-'+novoId+'-'+i,obra:novoId,nome:n,responsavel:db.config.responsavel,status:'Não iniciada',peso:p/100,progresso:0}))}
+  if(id)Object.assign(o,x);else{db.obras.push(x);const chk=$('#f_modelo');
+   if(chk&&chk.checked)MODELO.forEach(([n,p],i)=>db.etapas.push({id:'ETP-'+novoId+'-'+i,obra:novoId,nome:n,responsavel:db.config.responsavel,status:'Não iniciada',peso:p/100,progresso:0}))}
   save();$('.modal').remove();go('Obras')}}
-function formEtapa(id){if(!db.obras.length)return alert('Cadastre uma obra antes de criar etapas.');
+function formEtapa(id){if(!db.obras.length)return erro('Cadastre uma obra antes de criar etapas.');
  const e=db.etapas.find(x=>x.id===id)||{};
  modal('Etapa',`<div class="form-grid"><label>Obra<select id="f_obra">${opcoesObras(e.obra)}</select></label><label>Etapa / serviço<input id="f_nome" value="${esc(e.nome||'')}"></label><label>Responsável<input id="f_resp" value="${esc(e.responsavel||db.config.responsavel||'')}"></label><label>Status<select id="f_status">${['Não iniciada','Em andamento','Concluída','Bloqueada'].map(s=>`<option ${s===e.status?'selected':''}>${s}</option>`).join('')}</select></label><label>Peso da etapa (%)<input id="f_peso" type="number" min="1" max="100" value="${Math.round((+e.peso||0.1)*100)}"></label><label>% concluído<input id="f_prog" type="number" min="0" max="100" value="${e.progresso||0}"></label><label class="full">Descrição<textarea id="f_desc">${esc(e.descricao||'')}</textarea></label></div>`);
- $('#salvar').onclick=()=>{const nome=$('#f_nome').value.trim();if(!nome)return alert('Informe o nome da etapa.');
-  const prog=Math.min(100,Math.max(0,+$('#f_prog').value||0));
-  const x={id:e.id||'ETP-'+Date.now(),obra:$('#f_obra').value,nome,responsavel:$('#f_resp').value,status:$('#f_status').value,peso:(+$('#f_peso').value||1)/100,progresso:prog,descricao:$('#f_desc').value};
+ $('#salvar').onclick=()=>{const nome=$('#f_nome').value.trim();if(!nome)return erro('Informe o nome da etapa.');
+  const st=$('#f_status').value;
+  const x={id:e.id||'ETP-'+Date.now(),obra:$('#f_obra').value,nome,responsavel:$('#f_resp').value,status:st,peso:(+$('#f_peso').value||1)/100,progresso:st==='Concluída'?100:Math.min(100,Math.max(0,+$('#f_prog').value||0)),descricao:$('#f_desc').value};
   id?Object.assign(e,x):db.etapas.push(x);recalcularObra(x.obra);save();$('.modal').remove();go('Etapas')}}
-function formOrc(){if(!db.clientes.length||!db.obras.length)return alert('Cadastre um cliente e uma obra antes do orçamento.');
+function formOrc(){if(!db.clientes.length||!db.obras.length)return erro('Cadastre um cliente e uma obra antes do orçamento.');
  modal('Orçamento personalizado',`<div class="form-grid"><label>Cliente<select id="f_cli">${opcoesClientes()}</select></label><label>Obra<select id="f_obra">${opcoesObras()}</select></label></div><div id="itens"><div class="form-grid item" style="margin-top:15px"><label>Item<input class="it_nome"></label><label>Quantidade<input class="it_qtd" type="number" value="1"></label><label>Valor unitário<input class="it_val" type="number" step="0.01"></label><label>Desconto<input class="it_desc" type="number" step="0.01" value="0"></label></div></div><button id="mais" class="outline" style="margin-top:12px">+ Item</button><div class="total" id="total">Total: R$ 0,00</div>`);
  const calc=()=>{let t=0;$$('.item').forEach(i=>t+=Math.max(0,(+i.querySelector('.it_qtd').value||0)*(+i.querySelector('.it_val').value||0)-(+i.querySelector('.it_desc').value||0)));$('#total').textContent='Total: '+money(t);return t};
  const wire=()=>$$('.item input').forEach(x=>x.oninput=calc);
@@ -95,19 +99,19 @@ function formOrc(){if(!db.clientes.length||!db.obras.length)return alert('Cadast
  $('#salvar').onclick=()=>{const itens=$$('.item').map(i=>({nome:i.querySelector('.it_nome').value,qtd:+i.querySelector('.it_qtd').value,valor:+i.querySelector('.it_val').value,desconto:+i.querySelector('.it_desc').value}));
   db.orcamentos.push({id:'ORC-'+Date.now(),cliente:$('#f_cli').value,obra:$('#f_obra').value,data:new Date().toLocaleDateString('pt-BR'),itens,total:calc()});save();$('.modal').remove();go('Orçamentos')}}
 function recalcularObra(obraId){const es=db.etapas.filter(e=>e.obra===obraId);if(!es.length)return;
- const somaPeso=es.reduce((a,e)=>a+(+e.peso||0),0)||1;
- const p=Math.round(es.reduce((a,e)=>a+(+e.peso||0)*(+e.progresso||0),0)/somaPeso);
+ const soma=es.reduce((a,e)=>a+(+e.peso||0),0)||1;
+ const p=Math.round(es.reduce((a,e)=>a+(+e.peso||0)*(+e.progresso||0),0)/soma);
  const o=db.obras.find(x=>x.id===obraId);if(o)o.progresso=Math.min(100,Math.max(0,p))}
-function addMedia(){if(!db.obras.length)return alert('Cadastre uma obra antes de adicionar mídias.');
+function addMedia(){if(!db.obras.length)return erro('Cadastre uma obra antes de adicionar mídias.');
  modal('Adicionar foto ou vídeo',`<label>Obra<select id="f_obra">${opcoesObras()}</select></label><label>Etapa (opcional)<select id="f_etapa"><option value="">Sem etapa</option>${opcoesEtapas((db.obras[0]||{}).id)}</select></label><label>Texto explicativo<textarea id="f_texto"></textarea></label><label>Arquivo<input id="f_arq" type="file" accept="image/*,video/*"></label>`);
  const selObra=$('#f_obra'),selEtapa=$('#f_etapa');
  selObra.onchange=()=>{selEtapa.innerHTML='<option value="">Sem etapa</option>'+opcoesEtapas(selObra.value)};
- $('#salvar').onclick=()=>{const f=$('#f_arq').files[0];if(!f)return alert('Selecione um arquivo.');
-  if(f.size>4e6)return alert('Para manter o aplicativo leve, use arquivos de até 4 MB.');
-  const obraSel=selObra.value||(db.obras[0]||{}).id;if(!obraSel)return alert('Selecione uma obra.');
+ $('#salvar').onclick=()=>{const f=$('#f_arq').files[0];if(!f)return erro('Selecione um arquivo.');
+  if(f.size>4e6)return erro('Para manter o aplicativo leve, use arquivos de até 4 MB.');
+  const obraSel=selObra.value||(db.obras[0]||{}).id;if(!obraSel)return erro('Selecione uma obra.');
   const r=new FileReader();
   r.onload=()=>{db.midias.push({id:'MID-'+Date.now(),obra:obraSel,etapa:selEtapa.value||'',texto:$('#f_texto').value,tipo:f.type,data:r.result,dataReg:new Date().toLocaleDateString('pt-BR')});
-   if(!save()){db.midias.pop();return alert('Armazenamento cheio. Exclua mídias antigas ou use arquivos menores.')}
+   if(!save()){db.midias.pop();return erro('Armazenamento cheio. Exclua mídias antigas ou use arquivos menores.')}
    $('.modal').remove();go('Mídias')};r.readAsDataURL(f)}}
 function fichaObra(id){const o=db.obras.find(x=>x.id===id);if(!o)return;const c=clienteObj(o.cliente);
  const etapas=db.etapas.filter(e=>e.obra===o.id),orcs=db.orcamentos.filter(x=>x.obra===o.id),mid=db.midias.filter(m=>m.obra===o.id);
@@ -115,126 +119,103 @@ function fichaObra(id){const o=db.obras.find(x=>x.id===id);if(!o)return;const c=
  $('#fecharFicha').onclick=()=>$('.modal').remove()}
 const AZUL={r:0.043,g:0.102,b:0.165},AZUL2={r:0.043,g:0.231,b:0.376},OURO={r:0.949,g:0.788,b:0.298},CINZA={r:0.42,g:0.47,b:0.52},TINTA={r:0.09,g:0.14,b:0.19};
 function dataUrlToBytes(u){const i=u.indexOf(',');const b=atob(u.slice(i+1));const a=new Uint8Array(b.length);for(let k=0;k<b.length;k++)a[k]=b.charCodeAt(k);return a}
-function limpa(txt){return String(txt??'').replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu,'').trim()}
-function quebra(txt,font,size,max){const palavras=limpa(txt).split(/\s+/).filter(Boolean);const linhas=[];let atual='';
- for(const p of palavras){const teste=atual?atual+' '+p:p;if(font.widthOfTextAtSize(teste,size)>max&&atual){linhas.push(atual);atual=p}else atual=teste}
- if(atual)linhas.push(atual);return linhas.length?linhas:['']}
+function limpa(t){return String(t??'').replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu,'').replace(/\u00A0/g,' ').trim()}
+function quebra(txt,font,size,max){const ps=limpa(txt).split(/\s+/).filter(Boolean);const ls=[];let cur='';
+ for(const p of ps){const t=cur?cur+' '+p:p;if(font.widthOfTextAtSize(t,size)>max&&cur){ls.push(cur);cur=p}else cur=t}
+ if(cur)ls.push(cur);return ls.length?ls:['']}
 async function gerarPdfObra(id){
- if(!window.PDFLib)return alert('Não foi possível carregar o gerador de PDF. Verifique a internet e tente novamente.');
+ if(!window.PDFLib)return erro('Não foi possível carregar o gerador de PDF. Verifique a internet e tente novamente.');
  const o=db.obras.find(x=>x.id===id);if(!o)return;const c=clienteObj(o.cliente);
  const etapas=db.etapas.filter(e=>e.obra===o.id),orcs=db.orcamentos.filter(x=>x.obra===o.id),mid=db.midias.filter(m=>m.obra===o.id&&(m.tipo||'').startsWith('image'));
  const {PDFDocument,StandardFonts}=window.PDFLib;
  const pdf=await PDFDocument.create();
  const R=await pdf.embedFont(StandardFonts.Helvetica),B=await pdf.embedFont(StandardFonts.HelveticaBold);
- pdf.setTitle('Relatorio de Obra - '+o.nome);pdf.setAuthor(db.config.empresa||'Tony Eletricista');
- const W=595,H=842,M=48,LARG=W-M*2;
- let pg=pdf.addPage([W,H]),y=H-58;
- const novaPagina=()=>{pg=pdf.addPage([W,H]);y=H-58};
- const rodape=()=>{pg.drawText(limpa(`${db.config.empresa||''}   ·   Página ${pdf.getPageCount()}`),{x:M,y:30,size:8,font:R,color:CINZA})};
- const garante=h=>{if(y-h<64){rodape();novaPagina()}};
- const linha=(txt,{size=10.5,font=R,color=TINTA,indent=0,space=4,lead=1.45}={})=>{
-  const ls=quebra(txt,font,size,LARG-indent);garante(ls.length*size*lead+space);
-  ls.forEach(l=>{pg.drawText(l,{x:M+indent,y,size,font,color});y-=size*lead});y-=space};
- const titulo=txt=>{garante(30);y-=8;pg.drawText(limpa(txt),{x:M,y,size:13,font:B,color:AZUL2});y-=8;
-  pg.drawLine({start:{x:M,y},end:{x:W-M,y},thickness:1,color:OURO});y-=16};
+ const W=595,H=842,M=48,LARG=W-M*2;let pg=pdf.addPage([W,H]),y=H-58;
+ const nova=()=>{pg=pdf.addPage([W,H]);y=H-58};
+ const rod=()=>{pg.drawText(limpa(`${db.config.empresa||''}   ·   Página ${pdf.getPageCount()}`),{x:M,y:30,size:8,font:R,color:CINZA})};
+ const g=h=>{if(y-h<64){rod();nova()}};
+ const linha=(txt,{size=10.5,font=R,color=TINTA,space=4,lead=1.45}={})=>{const ls=quebra(txt,font,size,LARG);g(ls.length*size*lead+space);
+  ls.forEach(l=>{pg.drawText(l,{x:M,y,size,font,color});y-=size*lead});y-=space};
+ const tit=t=>{g(30);y-=8;pg.drawText(limpa(t),{x:M,y,size:13,font:B,color:AZUL2});y-=8;pg.drawLine({start:{x:M,y},end:{x:W-M,y},thickness:1,color:OURO});y-=16};
  pg.drawRectangle({x:0,y:H-34,width:W,height:34,color:AZUL});
  pg.drawText('TONY ELETRICISTA',{x:M,y:H-24,size:12,font:B,color:OURO});
- pg.drawText(limpa(db.config.instagram||''),{x:W-M-90,y:H-24,size:9,font:R,color:{r:0.8,g:0.85,b:0.9}});
- y=H-70;
- pg.drawText('RELATÓRIO DE OBRA',{x:M,y,size:20,font:B,color:AZUL});y-=22;
+ y=H-70;pg.drawText('RELATÓRIO DE OBRA',{x:M,y,size:20,font:B,color:AZUL});y-=22;
  linha(`${db.config.empresa||''}${db.config.responsavel?'  ·  Responsável: '+db.config.responsavel:''}`,{size:9.5,color:CINZA,space:1});
  linha(`${db.config.contato?'Contato: '+db.config.contato+'  ·  ':''}Emitido em ${new Date().toLocaleDateString('pt-BR')}`,{size:9.5,color:CINZA,space:12});
- titulo('DADOS DA OBRA');
+ tit('DADOS DA OBRA');
  linha(`OBRA: ${o.nome}`,{font:B,size:12,space:2});
  linha(`Código: ${o.id}   ·   Status: ${o.status}   ·   Progresso: ${o.progresso}%`,{size:10,space:1});
  linha(`Endereço: ${o.endereco||'Não informado'}`,{size:10,space:1});
  linha(`Início: ${o.inicio?dataBR(o.inicio):'A definir'}   ·   Previsão: ${o.fim?dataBR(o.fim):'A definir'}`,{size:10,space:1});
  linha(`Valor contratado: ${money(o.valor)}`,{size:10,space:2});
  if(o.descricao)linha(o.descricao,{size:10,space:2});
- titulo('CLIENTE');
+ tit('CLIENTE');
  linha(c.nome||'-',{font:B,size:11,space:2});
  linha(`Telefone: ${c.telefone||'-'}   ·   E-mail: ${c.email||'-'}`,{size:10,space:1});
  linha(`Endereço: ${c.endereco||'-'}`,{size:10,space:2});
- titulo('ETAPAS E ANDAMENTO');
- if(etapas.length)etapas.forEach(e=>linha(`• ${e.nome}  —  ${e.status}  —  ${e.progresso}% concluído  (peso ${Math.round((+e.peso||0)*100)}%)`,{size:10,space:2}));
+ tit('ETAPAS E ANDAMENTO');
+ if(etapas.length)etapas.forEach(e=>linha(`${e.nome}  —  ${e.status}  —  ${e.progresso}% concluído`,{size:10,space:2}));
  else linha('Nenhuma etapa registrada.',{size:10,color:CINZA});
- titulo('ORÇAMENTOS VINCULADOS');
- if(orcs.length)orcs.forEach(x=>linha(`• ${x.id}  —  ${x.data}  —  ${money(x.total)}`,{size:10,space:2}));
+ tit('ORÇAMENTOS VINCULADOS');
+ if(orcs.length)orcs.forEach(x=>linha(`${x.id}  —  ${x.data}  —  ${money(x.total)}`,{size:10,space:2}));
  else linha('Nenhum orçamento registrado.',{size:10,color:CINZA});
- if(orcs.length){titulo('DETALHE DO ÚLTIMO ORÇAMENTO');
-  const ultimo=orcs[orcs.length-1];
-  (ultimo.itens||[]).forEach((i,n)=>linha(`${String(n+1).padStart(2,'0')}  ${i.nome||'Item'}   ${i.qtd} x ${money(i.valor)}   =   ${money(i.qtd*i.valor-i.desconto)}`,{size:9.5,space:1.5}));
-  linha(`TOTAL: ${money(ultimo.total)}`,{font:B,size:11,space:8})}
- if(mid.length){titulo('REGISTRO FOTOGRÁFICO');
+ if(orcs.length){tit('DETALHE DO ÚLTIMO ORÇAMENTO');const u=orcs[orcs.length-1];
+  (u.itens||[]).forEach((i,n)=>linha(`${String(n+1).padStart(2,'0')}  ${i.nome||'Item'}   ${i.qtd} x ${money(i.valor)}   =   ${money(i.qtd*i.valor-i.desconto)}`,{size:9.5,space:1.5}));
+  linha(`TOTAL: ${money(u.total)}`,{font:B,size:11,space:8})}
+ if(mid.length){tit('REGISTRO FOTOGRÁFICO');
   linha(`${mid.length} foto(s) registrada(s) nesta obra.`,{size:9.5,color:CINZA,space:8});
-  let px=M,py=y,naPagina=0;
+  let px=M,py=y;
   for(const m of mid.slice(0,12)){
    let emb;try{emb=await pdf.embedJpg(dataUrlToBytes(m.data))}catch(e){continue}
    const lw=150,lh=Math.min(112,lw*emb.height/emb.width);
-   if(py-lh-24<70){rodape();novaPagina();px=M;py=y}
+   if(py-lh-24<70){rod();nova();px=M;py=y}
    pg.drawImage(emb,{x:px,y:py-lh,width:lw,height:lh});
    pg.drawText(limpa((m.texto||etapaNome(m.etapa)||'Registro')).slice(0,34),{x:px,y:py-lh-11,size:7.5,font:R,color:CINZA});
-   px+=lw+14;naPagina++;
-   if(px+150>W-M){px=M;py-=lh+28}
-  }
-  y=py-(112+28);
- }
- garante(70);
- y-=10;titulo('OBSERVAÇÕES E ASSINATURA');
+   px+=lw+14;if(px+150>W-M){px=M;py-=lh+28}}
+  if(mid.length>12)linha(`Mais ${mid.length-12} foto(s) não incluída(s) neste PDF.`,{size:9,color:CINZA,space:6})}
+ g(70);y-=10;tit('OBSERVAÇÕES E ASSINATURA');
  linha('Este relatório reflete o andamento registrado até a data de emissão. Fotos, medições e prazos podem ser atualizados nas próximas visitas técnicas.',{size:9.5,space:20});
  pg.drawLine({start:{x:M,y},end:{x:M+220,y},thickness:0.8,color:CINZA});y-=12;
  linha(`Assinatura do responsável — ${db.config.empresa||''}`,{size:9,color:CINZA});
- rodape();
- const bytes=await pdf.save();
- await compartilhar(bytes,'relatorio-'+o.id+'.pdf')}
+ rod();const bytes=await pdf.save();await compartilhar(bytes,'relatorio-'+o.id+'.pdf')}
 async function gerarPdfOrcamento(id){
- if(!window.PDFLib)return alert('Não foi possível carregar o gerador de PDF. Verifique a internet e tente novamente.');
+ if(!window.PDFLib)return erro('Não foi possível carregar o gerador de PDF. Verifique a internet e tente novamente.');
  const o=db.orcamentos.find(x=>x.id===id);if(!o)return;const c=clienteObj(o.cliente);
  const {PDFDocument,StandardFonts}=window.PDFLib;
  const pdf=await PDFDocument.create();
  const R=await pdf.embedFont(StandardFonts.Helvetica),B=await pdf.embedFont(StandardFonts.HelveticaBold);
- pdf.setTitle('Orcamento '+o.id);pdf.setAuthor(db.config.empresa||'Tony Eletricista');
  const W=595,H=842,M=48,LARG=W-M*2;let pg=pdf.addPage([W,H]),y=H-58;
- const novaPagina=()=>{pg=pdf.addPage([W,H]);y=H-58};
- const rodape=()=>{pg.drawText(limpa(`${db.config.empresa||''}   ·   Página ${pdf.getPageCount()}`),{x:M,y:30,size:8,font:R,color:CINZA})};
- const garante=h=>{if(y-h<64){rodape();novaPagina()}};
- const linha=(txt,{size=10.5,font=R,color=TINTA,space=4,lead=1.45}={})=>{
-  const ls=quebra(txt,font,size,LARG);garante(ls.length*size*lead+space);
+ const nova=()=>{pg=pdf.addPage([W,H]);y=H-58};
+ const rod=()=>{pg.drawText(limpa(`${db.config.empresa||''}   ·   Página ${pdf.getPageCount()}`),{x:M,y:30,size:8,font:R,color:CINZA})};
+ const g=h=>{if(y-h<64){rod();nova()}};
+ const linha=(txt,{size=10.5,font=R,color=TINTA,space=4,lead=1.45}={})=>{const ls=quebra(txt,font,size,LARG);g(ls.length*size*lead+space);
   ls.forEach(l=>{pg.drawText(l,{x:M,y,size,font,color});y-=size*lead});y-=space};
- const titulo=txt=>{garante(30);y-=8;pg.drawText(limpa(txt),{x:M,y,size:13,font:B,color:AZUL2});y-=8;
-  pg.drawLine({start:{x:M,y},end:{x:W-M,y},thickness:1,color:OURO});y-=16};
+ const tit=t=>{g(30);y-=8;pg.drawText(limpa(t),{x:M,y,size:13,font:B,color:AZUL2});y-=8;pg.drawLine({start:{x:M,y},end:{x:W-M,y},thickness:1,color:OURO});y-=16};
  pg.drawRectangle({x:0,y:H-34,width:W,height:34,color:AZUL});
  pg.drawText('TONY ELETRICISTA',{x:M,y:H-24,size:12,font:B,color:OURO});
- y=H-70;
- pg.drawText('ORÇAMENTO',{x:M,y,size:20,font:B,color:AZUL});
+ y=H-70;pg.drawText('ORÇAMENTO',{x:M,y,size:20,font:B,color:AZUL});
  pg.drawText(limpa(o.id),{x:W-M-B.widthOfTextAtSize(o.id,12)-2,y,size:12,font:B,color:AZUL2});y-=24;
  linha(`${db.config.empresa||''}${db.config.contato?'  ·  Contato: '+db.config.contato:''}`,{size:9.5,color:CINZA,space:1});
  linha(`Data: ${o.data}   ·   Validade: 15 dias`,{size:9.5,color:CINZA,space:12});
- titulo('CLIENTE');
+ tit('CLIENTE');
  linha(c.nome||'-',{font:B,size:11,space:2});
  linha(`Telefone: ${c.telefone||'-'}   ·   Endereço: ${c.endereco||'-'}`,{size:10,space:1});
  linha(`Obra: ${obraNome(o.obra)}`,{size:10,space:4});
- titulo('ITENS DO ORÇAMENTO');
- (o.itens||[]).forEach((i,n)=>{
-  linha(`${String(n+1).padStart(2,'0')}  ${i.nome||'Item'}`,{font:B,size:10,space:1});
+ tit('ITENS DO ORÇAMENTO');
+ (o.itens||[]).forEach((i,n)=>{linha(`${String(n+1).padStart(2,'0')}  ${i.nome||'Item'}`,{font:B,size:10,space:1});
   linha(`${i.qtd} x ${money(i.valor)}  −  desconto ${money(i.desconto)}  =  ${money(i.qtd*i.valor-i.desconto)}`,{size:9.5,color:CINZA,space:5})});
- y-=8;garante(30);
+ y-=8;g(30);
  pg.drawRectangle({x:M,y-24,width:LARG,height:30,color:{r:0.95,g:0.96,b:0.97}});
  pg.drawText('TOTAL',{x:M+12,y:y-13,size:11,font:B,color:AZUL2});
- pg.drawText(limpa(money(o.total)),{x:W-M-B.widthOfTextAtSize(money(o.total),13)-12,y:y-14,size:13,font:B,color:AZUL2});
- y-=44;
+ pg.drawText(limpa(money(o.total)),{x:W-M-B.widthOfTextAtSize(money(o.total),13)-12,y:y-14,size:13,font:B,color:AZUL2});y-=44;
  linha('Condições: materiais e prazos sujeitos a confirmação. Validade de 15 dias a partir da data de emissão.',{size:9,color:CINZA,space:20});
  pg.drawLine({start:{x:M,y},end:{x:M+220,y},thickness:0.8,color:CINZA});y-=12;
  linha(`Assinatura do responsável — ${db.config.empresa||''}`,{size:9,color:CINZA});
- rodape();
- const bytes=await pdf.save();
- await compartilhar(bytes,'orcamento-'+o.id+'.pdf')}
-async function compartilhar(bytes,nome){
- const blob=new Blob([bytes],{type:'application/pdf'});
+ rod();const bytes=await pdf.save();await compartilhar(bytes,'orcamento-'+o.id+'.pdf')}
+async function compartilhar(bytes,nome){const blob=new Blob([bytes],{type:'application/pdf'});
  try{const file=new File([blob],nome,{type:'application/pdf'});
   if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:nome});return}}catch(e){}
- const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=nome;
- document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000)}
+ const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=nome;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000)}
 function bind(){
  const novo=$('#novo');
  if(novo)novo.onclick=()=>({obra:formObra,cliente:formCliente,orcamento:formOrc,etapa:formEtapa}[novo.dataset.tipo]||formObra)();
@@ -248,32 +229,33 @@ function bind(){
  $$('[data-vieworc]').forEach(b=>b.onclick=()=>{const o=db.orcamentos.find(x=>x.id===b.dataset.vieworc);
   modal('Orçamento '+o.id,`<h3>${esc(clienteNome(o.cliente))}</h3>${(o.itens||[]).map(i=>`<p>${esc(i.nome)} - ${i.qtd} x ${money(i.valor)} = ${money(i.qtd*i.valor-i.desconto)}</p>`).join('')}<div class="total">${money(o.total)}</div>`,'fechar2','Fechar');
   $('#fechar2').onclick=()=>$('.modal').remove()});
- $$('[data-delobra]').forEach(b=>b.onclick=()=>{if(confirm('Excluir esta obra e os registros ligados a ela?')){const id=b.dataset.delobra;db.obras=db.obras.filter(x=>x.id!==id);db.etapas=db.etapas.filter(x=>x.obra!==id);db.orcamentos=db.orcamentos.filter(x=>x.obra!==id);db.midias=db.midias.filter(x=>x.obra!==id);save();go('Obras')}});
+ $$('[data-delobra]').forEach(b=>b.onclick=()=>{if(confirm('Excluir esta obra e os registros ligados a ela?')){const id=b.dataset.delobra;
+  db.obras=db.obras.filter(x=>x.id!==id);db.etapas=db.etapas.filter(x=>x.obra!==id);db.orcamentos=db.orcamentos.filter(x=>x.obra!==id);db.midias=db.midias.filter(x=>x.obra!==id);save();go('Obras')}});
  $$('[data-deletapa]').forEach(b=>b.onclick=()=>{if(confirm('Excluir esta etapa?')){const e=db.etapas.find(x=>x.id===b.dataset.deletapa);db.etapas=db.etapas.filter(x=>x.id!==b.dataset.deletapa);if(e)recalcularObra(e.obra);save();go('Etapas')}});
  $$('[data-delcli]').forEach(b=>b.onclick=()=>{if(confirm('Excluir este cliente?')){db.clientes=db.clientes.filter(x=>x.id!==b.dataset.delcli);save();go('Clientes')}});
- $$('[data-delorc]').forEach(b=>b.onclick=()=>{if(confirm('Excluir este orçamento?')){db.orcamentos=db.orcamentos.filter(x=>x.id!==b.dataset.delor c);save();go('Orçamentos')}});
+ $$('[data-delorc]').forEach(b=>b.onclick=()=>{if(confirm('Excluir este orçamento?')){db.orcamentos=db.orcamentos.filter(x=>x.id!==b.dataset.delorc);save();go('Orçamentos')}});
  $$('[data-delmedia]').forEach(b=>b.onclick=()=>{if(confirm('Excluir esta mídia?')){db.midias=db.midias.filter(x=>x.id!==b.dataset.delmedia);save();go(page)}});
  if($('#addMedia'))$('#addMedia').onclick=addMedia;
- if($('#salvarCfg'))$('#salvarCfg').onclick=()=>{db.config.empresa=$('#cfgEmpresa').value;db.config.responsavel=$('#cfgResp').value;db.config.contato=$('#cfgContato').value;db.config.instagram=$('#cfgInsta').value;save();alert('Dados do relatório atualizados.')};
+ if($('#salvarCfg'))$('#salvarCfg').onclick=()=>{db.config.empresa=$('#cfgEmpresa').value;db.config.responsavel=$('#cfgResp').value;db.config.contato=$('#cfgContato').value;db.config.instagram=$('#cfgInsta').value;save();erro('Dados do relatório atualizados.')};
  if($('#salvarAdmin'))$('#salvarAdmin').onclick=()=>{const l=$('#adminLogin').value.trim(),s=$('#adminSenha').value;
-  if(!l)return alert('Informe o login do administrador.');
-  if(db.clientes.some(c=>String(c.login).toLowerCase()===l.toLowerCase()))return alert('Este login pertence a um cliente.');
-  db.config.adminLogin=l;if(s)db.config.adminSenha=s;save();$('#adminSenha').value='';alert('Acesso do administrador atualizado.')};
+  if(!l)return erro('Informe o login do administrador.');
+  if(db.clientes.some(c=>String(c.login).toLowerCase()===l.toLowerCase()))return erro('Este login pertence a um cliente.');
+  db.config.adminLogin=l;if(s)db.config.adminSenha=s;save();$('#adminSenha').value='';erro('Acesso do administrador atualizado.')};
  $$('[data-saveacesso]').forEach(b=>b.onclick=()=>{const c=db.clientes.find(x=>x.id===b.dataset.saveacesso);
   const l=$(`[data-logincli="${c.id}"]`).value.trim(),s=$(`[data-senhacli="${c.id}"]`).value;
-  if(!l||!uniqueLogin(l,c.id))return alert('Informe um login exclusivo.');
-  c.login=l;if(s)c.senha=s;save();$(`[data-senhacli="${c.id}"]`).value='';alert('Acesso do cliente atualizado.')});}
+  if(!l||!uniqueLogin(l,c.id))return erro('Informe um login exclusivo.');
+  c.login=l;if(s)c.senha=s;save();$(`[data-senhacli="${c.id}"]`).value='';erro('Acesso do cliente atualizado.')});}
 function init(){
- const form=$('#loginForm');
- if(form)form.onsubmit=login;else if($('#entrar'))$('#entrar').onclick=login;
- $$('[data-clear]').forEach(b=>b.onclick=()=>limparCampo(b.dataset.clear));
- if($('#verSenha'))$('#verSenha').onclick=()=>{const s=$('#senha');s.type=s.type==='password'?'text':'password'};
+ const btn=$('#entrar');if(btn)btn.onclick=login;
+ const form=$('#loginForm');if(form)form.onsubmit=login;
+ if($('#usuario'))$('#usuario').onkeydown=e=>{if(e.key==='Enter')$('#senha').focus()};
+ if($('#senha'))$('#senha').onkeydown=e=>{if(e.key==='Enter')login()};
  if($('#sair'))$('#sair').onclick=logout;
  if($('#menu'))$('#menu').onclick=openMenu;
  if($('#fecharMenu'))$('#fecharMenu').onclick=closeMenu;
  if($('#overlay'))$('#overlay').onclick=closeMenu;
  if($('#backup'))$('#backup').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(db,null,2)],{type:'application/json'}));a.download='backup-tony-eletricista.json';a.click()};
  db.obras.forEach(o=>recalcularObra(o.id));save();
- if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js?v=6');
+ if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
