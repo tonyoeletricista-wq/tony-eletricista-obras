@@ -9,7 +9,7 @@ function addMedia(){
   '<button id="f_cam" type="button" style="width:100%;margin-top:12px;background:#08a9e6;color:#071a2a">Tirar foto agora</button>'+
   '<input id="f_camInput" type="file" accept="image/*" capture="environment" style="display:none">',
   'fecharMedia','Fechar');
- var selObra=$('#f_obra'),selEtapa=$('#f_etapa');
+ var selObra=document.querySelector('#f_obra'),selEtapa=document.querySelector('#f_etapa');
  if(selObra)selObra.onchange=function(){selEtapa.innerHTML='<option value="">Sem etapa</option>'+opcoesEtapas(selObra.value)};
  function guardar(f){
   if(!f){erro('Selecione um arquivo ou tire uma foto.');return}
@@ -30,3 +30,4 @@ function addMedia(){
  var c=document.querySelector('#f_camInput');if(c)c.onchange=function(){if(this.files&&this.files[0])guardar(this.files[0])};
  var d=document.querySelector('#fecharMedia');if(d)d.onclick=function(){var m=document.querySelector('.modal');if(m)m.remove()};
 }
+window.addMedia=addMedia;
