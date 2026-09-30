@@ -1,8 +1,6 @@
-/* Tony Eletricista - nucleo do aplicativo */
 var $=function(s){return document.querySelector(s)};
 var $$=function(s){return [].slice.call(document.querySelectorAll(s))};
-var avisoEl=document.querySelector('#aviso');
-function erro(m){if(avisoEl&&m){avisoEl.textContent=m;avisoEl.classList.remove('hidden')}}
+function erro(m){var a=document.querySelector('#aviso');if(a&&m){a.textContent=m;a.classList.remove('hidden')}}
 var seed={config:{adminLogin:'tony',adminSenha:'TONY123',empresa:'Tony Eletricista',responsavel:'Tony',contato:'',instagram:'@tonyeletricistaa'},clientes:[],obras:[],etapas:[],orcamentos:[],midias:[]};
 var db=loadDb(),session=null,page='Painel';
 function loadDb(){var old=null;try{old=JSON.parse(localStorage.getItem('tony-db')||'null')}catch(e){}
@@ -12,18 +10,23 @@ function loadDb(){var old=null;try{old=JSON.parse(localStorage.getItem('tony-db'
  d.obras=(d.obras||[]).filter(function(o){return !/el[eé]trica residencial/i.test(o.nome||'')});
  d.etapas=(d.etapas||[]).filter(function(e){return d.obras.some(function(o){return o.id===e.obra})});
  d.orcamentos=d.orcamentos||[];d.midias=d.midias||[];return d}
-function save(){try{localStorage.setItem('tony-db',JSON.stringify(db));return true}catch(e){erro('O armazenamento do navegador está cheio. Exclua mídias antigas.');return false}}
+function save(){try{localStorage.setItem('tony-db',JSON.stringify(db));return true}catch(e){erro('O armazenamento do navegador está cheio. Exclua registros antigos.');return false}}
 function money(n){return (+n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
 function dataBR(d){return d?String(d).split('-').reverse().join('/'):''}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
 var menusAdmin=['Painel','Obras','Etapas','Clientes','Orçamentos','Mídias','Acessos'];
 var menusCli=['Minha obra','Etapas','Fotos e vídeos'];
-window.__entrar=function(clienteId){
- if(clienteId){session={perfil:'cliente',cliente:clienteId}}else{session={perfil:'admin'}}
- var s=$('#senha');if(s)s.value='';
- $('#login').classList.add('hidden');
- $('#app').classList.remove('hidden');
- renderNav();go(session.perfil==='admin'?'Painel':'Minha obra')};
+function fazerLogin(){
+ var u=($('#usuario')||{}).value||'',s=($('#senha')||{}).value||'';
+ u=u.trim().toLowerCase();
+ if(!u||!s){erro('Preencha o login e a senha.');return}
+ var adm=String(db.config.adminLogin||'tony').toLowerCase(),sen=String(db.config.adminSenha||'TONY123');
+ if(u===adm&&s===sen){session={perfil:'admin'}}
+ else{var cli=db.clientes.filter(function(x){return String(x.login||'').toLowerCase()===u&&String(x.senha)===s})[0];
+  if(cli){session={perfil:'cliente',cliente:cli.id}}else{$('#senha').value='';erro('Login ou senha inválidos.');return}}
+ if($('#aviso'))$('#aviso').classList.add('hidden');
+ $('#senha').value='';$('#login').classList.add('hidden');$('#app').classList.remove('hidden');
+ renderNav();go(session.perfil==='admin'?'Painel':'Minha obra')}
 function logout(){session=null;closeMenu();$('#app').classList.add('hidden');$('#login').classList.remove('hidden');
  if($('#usuario'))$('#usuario').value='';if($('#senha'))$('#senha').value=''}
 function renderNav(){var arr=session.perfil==='admin'?menusAdmin:menusCli;
@@ -38,27 +41,28 @@ function go(p){page=p;$('#titulo').textContent=p;
 function painel(){var total=db.obras.length,and=db.obras.filter(function(x){return x.status==='Em andamento'}).length,con=db.obras.filter(function(x){return x.status==='Concluída'}).length,v=db.obras.reduce(function(a,x){return a+(+x.valor||0)},0);
  return '<div class="grid"><div class="card metric"><b>'+total+'</b><span>Obras cadastradas</span></div><div class="card metric"><b>'+and+'</b><span>Em andamento</span></div><div class="card metric"><b>'+con+'</b><span>Concluídas</span></div><div class="card metric"><b>'+money(v)+'</b><span>Valor contratado</span></div></div><div class="panel"><h3>Andamento geral</h3>'+(db.obras.map(function(o){return '<div style="margin:18px 0"><b>'+esc(o.nome)+'</b><span style="float:right">'+(+o.progresso||0)+'%</span><div class="bar"><i style="width:'+(+o.progresso||0)+'%"></i></div></div>'}).join('')||'<div class="empty">Nenhuma obra cadastrada. Comece cadastrando um cliente e depois uma obra.</div>')+'</div>'}
 function list(bt,tipo,heads,rows){return '<div class="toolbar"><input id="busca" placeholder="Pesquisar..."><button id="novo" data-tipo="'+tipo+'">'+bt+'</button></div><div class="panel"><table><thead><tr>'+heads.map(function(h){return '<th>'+h+'</th>'}).join('')+'</tr></thead><tbody id="tbody">'+(rows||'<tr><td colspan="'+heads.length+'" class="empty">Sem registros.</td></tr>')+'</tbody></table></div>'}
-function obras(){return list('Nova obra','obra',['Obra','Cliente','Status','Progresso','Valor','Ações'],db.obras.map(function(o){return '<tr><td>'+esc(o.nome)+'</td><td>'+esc(clienteNome(o.cliente))+'</td><td><span class="badge">'+esc(o.status)+'</span></td><td>'+o.progresso+'%</td><td>'+money(o.valor)+'</td><td class="actions"><button data-editobra="'+o.id+'">Editar</button><button data-fichaobra="'+o.id+'">Ficha</button><button data-pdfobra="'+o.id+'">PDF</button><button class="danger" data-delobra="'+o.id+'">Excluir</button></td></tr>'}).join(''))}
+function obras(){return list('Nova obra','obra',['Obra','Cliente','Status','Progresso','Valor','Ações'],db.obras.map(function(o){return '<tr><td>'+esc(o.nome)+'</td><td>'+esc(clienteNome(o.cliente))+'</td><td><span class="badge">'+esc(o.status)+'</span></td><td>'+o.progresso+'%</td><td>'+money(o.valor)+'</td><td class="actions"><button data-editobra="'+o.id+'">Editar</button><button data-fichaobra="'+o.id+'">Ficha</button><button class="danger" data-delobra="'+o.id+'">Excluir</button></td></tr>'}).join(''))}
 function etapasAdmin(){return '<div class="hint">Cadastre as etapas de cada obra com peso e porcentagem. O progresso da obra é recalculado automaticamente.</div><div class="toolbar"><input id="busca" placeholder="Pesquisar..."><button id="novo" data-tipo="etapa">Nova etapa</button></div><div class="panel"><table><thead><tr><th>Obra</th><th>Etapa</th><th>Responsável</th><th>Peso</th><th>% concluído</th><th>Status</th><th>Ações</th></tr></thead><tbody id="tbody">'+(db.etapas.map(function(e){return '<tr><td>'+esc(obraNome(e.obra))+'</td><td>'+esc(e.nome)+'</td><td>'+esc(e.responsavel||'-')+'</td><td>'+Math.round((+e.peso||0)*100)+'%</td><td>'+e.progresso+'%</td><td><span class="badge">'+esc(e.status)+'</span></td><td class="actions"><button data-editetapa="'+e.id+'">Editar</button><button class="danger" data-deletapa="'+e.id+'">Excluir</button></td></tr>'}).join('')||'<tr><td colspan="7" class="empty">Sem etapas cadastradas.</td></tr>')+'</tbody></table></div>'}
 function clientes(){return list('Novo cliente','cliente',['Nome','Telefone','E-mail','Endereço','Login','Ações'],db.clientes.map(function(c){return '<tr><td>'+esc(c.nome)+'</td><td>'+esc(c.telefone)+'</td><td>'+esc(c.email)+'</td><td>'+esc(c.endereco||'-')+'</td><td>'+esc(c.login)+'</td><td class="actions"><button data-editcli="'+c.id+'">Editar</button><button class="danger" data-delcli="'+c.id+'">Excluir</button></td></tr>'}).join(''))}
-function orcamentos(){return list('Novo orçamento','orcamento',['Cliente','Obra','Total','Data','Ações'],db.orcamentos.map(function(o){return '<tr><td>'+esc(clienteNome(o.cliente))+'</td><td>'+esc(obraNome(o.obra))+'</td><td>'+money(o.total)+'</td><td>'+esc(o.data)+'</td><td class="actions"><button data-vieworc="'+o.id+'">Ver</button><button data-pdforc="'+o.id+'">PDF</button><button class="danger" data-delorc="'+o.id+'">Excluir</button></td></tr>'}).join(''))}
-function acessos(){return '<div class="hint">Somente o administrador vê esta área: dados do relatório, seu acesso e o login de cada cliente.</div><div class="panel"><h3>Dados do relatório em PDF</h3><div class="form-grid"><label>Nome da empresa<input id="cfgEmpresa" value="'+esc(db.config.empresa)+'"></label><label>Responsável<input id="cfgResp" value="'+esc(db.config.responsavel)+'"></label><label>Telefone / WhatsApp<input id="cfgContato" value="'+esc(db.config.contato)+'"></label><label>Instagram<input id="cfgInsta" value="'+esc(db.config.instagram)+'"></label></div><button id="salvarCfg" style="margin-top:15px">Salvar dados</button></div><div class="panel"><h3>Acesso do administrador</h3><div class="form-grid"><label>Login<input id="adminLogin" value="'+esc(db.config.adminLogin)+'" autocapitalize="none"></label><label>Nova senha<input id="adminSenha" type="password" placeholder="Deixe vazio para manter a atual"></label></div><button id="salvarAdmin" style="margin-top:15px">Salvar acesso</button></div><div class="panel"><h3>Acessos dos clientes</h3><table><thead><tr><th>Cliente</th><th>Login</th><th>Nova senha</th><th>Ação</th></tr></thead><tbody>'+(db.clientes.map(function(c){return '<tr><td>'+esc(c.nome)+'</td><td><input data-logincli="'+c.id+'" value="'+esc(c.login)+'"></td><td><input data-senhacli="'+c.id+'" type="password" placeholder="Manter senha atual"></td><td><button data-saveacesso="'+c.id+'">Salvar</button></td></tr>'}).join('')||'<tr><td colspan="4" class="empty">Cadastre um cliente primeiro.</td></tr>')+'</tbody></table></div>'}
+function orcamentos(){return list('Novo orçamento','orcamento',['Cliente','Obra','Total','Data','Ações'],db.orcamentos.map(function(o){return '<tr><td>'+esc(clienteNome(o.cliente))+'</td><td>'+esc(obraNome(o.obra))+'</td><td>'+money(o.total)+'</td><td>'+esc(o.data)+'</td><td class="actions"><button data-vieworc="'+o.id+'">Ver</button><button class="danger" data-delorc="'+o.id+'">Excluir</button></td></tr>'}).join(''))}
+function acessos(){return '<div class="hint">Somente o administrador vê esta área: os dados que aparecem no relatório, o seu acesso e o login de cada cliente.</div><div class="panel"><h3>Dados do relatório</h3><div class="form-grid"><label>Nome da empresa<input id="cfgEmpresa" value="'+esc(db.config.empresa)+'"></label><label>Responsável<input id="cfgResp" value="'+esc(db.config.responsavel)+'"></label><label>Telefone / WhatsApp<input id="cfgContato" value="'+esc(db.config.contato)+'"></label><label>Instagram<input id="cfgInsta" value="'+esc(db.config.instagram)+'"></label></div><button id="salvarCfg" style="margin-top:15px">Salvar dados</button></div><div class="panel"><h3>Acesso do administrador</h3><div class="form-grid"><label>Login<input id="adminLogin" value="'+esc(db.config.adminLogin)+'" autocapitalize="none"></label><label>Nova senha<input id="adminSenha" type="password" placeholder="Deixe vazio para manter a atual"></label></div><button id="salvarAdmin" style="margin-top:15px">Salvar acesso</button></div><div class="panel"><h3>Acessos dos clientes</h3><table><thead><tr><th>Cliente</th><th>Login</th><th>Nova senha</th><th>Ação</th></tr></thead><tbody>'+(db.clientes.map(function(c){return '<tr><td>'+esc(c.nome)+'</td><td><input data-logincli="'+c.id+'" value="'+esc(c.login)+'"></td><td><input data-senhacli="'+c.id+'" type="password" placeholder="Manter senha atual"></td><td><button data-saveacesso="'+c.id+'">Salvar</button></td></tr>'}).join('')||'<tr><td colspan="4" class="empty">Cadastre um cliente primeiro.</td></tr>')+'</tbody></table></div>'}
 function midias(){return midiasHtml(false)}
 function midiasCliente(){var ids=db.obras.filter(function(o){return o.cliente===session.cliente}).map(function(o){return o.id});return midiasHtml(true,ids)}
 function midiasHtml(soLeitura,filtroIds){
  var lista=(filtroIds?db.midias.filter(function(m){return filtroIds.indexOf(m.obra)>=0}):db.midias).slice().reverse();
- var cards=lista.map(function(m){return '<div class="card">'+(m.tipo&&m.tipo.indexOf('video')===0?'<video controls src="'+m.data+'"></video>':'<img src="'+m.data+'" alt="Mídia da obra">')+'<p><b>'+esc(obraNome(m.obra))+'</b></p>'+(m.etapa?'<small>Etapa: '+esc(etapaNome(m.etapa))+'</small><br>':'')+'<small>'+esc(m.texto||'')+'</small><br><small>'+esc(m.dataReg||'')+'</small>'+(soLeitura?'':'<br><button class="danger" data-delmedia="'+m.id+'">Excluir</button>')+'</div>'}).join('');
- var barra=soLeitura?'':'<div class="toolbar"><button id="addMedia">Adicionar foto/vídeo</button></div>';
- return barra+'<div class="panel"><div class="media-grid">'+(cards||'<div class="empty">Nenhuma mídia registrada.</div>')+'</div></div>'}
+ var cards=lista.map(function(m){
+  var abre=m.link?'<br><a href="'+esc(m.link)+'" target="_blank" rel="noopener" style="color:#f2c94c">Abrir '+(m.tipo||'registro')+'</a>':'';
+  return '<div class="card"><p><b>'+esc(obraNome(m.obra))+'</b></p>'+(m.etapa?'<small>Etapa: '+esc(etapaNome(m.etapa))+'</small><br>':'')+'<small>'+esc(m.texto||'')+'</small><br><small>'+esc(m.tipo||'')+' · '+esc(m.dataReg||'')+'</small>'+abre+(soLeitura?'':'<br><button class="danger" data-delmedia="'+m.id+'">Excluir</button>')+'</div>'});
+ var barra=soLeitura?'':'<div class="toolbar"><button id="addMedia">Adicionar registro</button></div>';
+ return barra+'<div class="panel"><div class="media-grid">'+(cards.join('')||'<div class="empty">Nenhum registro adicionado. Use o botão acima para registrar fotos, vídeos e documentos por link.</div>')+'</div></div>'}
 function minhaObra(){var os=db.obras.filter(function(o){return o.cliente===session.cliente});
  return os.map(function(o){return '<div class="card" style="margin-bottom:15px"><h3>'+esc(o.nome)+'</h3><p>'+esc(o.descricao)+'</p><p><span class="badge">'+esc(o.status)+'</span> &nbsp; Previsão: '+(o.fim?dataBR(o.fim):'A definir')+'</p><div class="bar"><i style="width:'+o.progresso+'%"></i></div><p>'+o.progresso+'% concluído</p></div>'}).join('')||'<div class="empty">Nenhuma obra vinculada.</div>'}
 function clienteNome(id){var c=db.clientes.filter(function(x){return x.id===id})[0];return c?c.nome:'-'}
 function clienteObj(id){return db.clientes.filter(function(x){return x.id===id})[0]||{}}
 function obraNome(id){var o=db.obras.filter(function(x){return x.id===id})[0];return o?o.nome:'-'}
 function etapaNome(id){var e=db.etapas.filter(function(x){return x.id===id})[0];return e?e.nome:'-'}
-function uniqueLogin(l,id){return !db.clientes.some(function(c){return c.id!==id&&String(c.login).toLowerCase()===l.toLowerCase()})&&String(db.config.adminLogin).toLowerCase()!==l.toLowerCase()}
 function modal(t,corpo,idBotao,rotulo){idBotao=idBotao||'salvar';rotulo=rotulo||'Salvar';
- document.body.insertAdjacentHTML('beforeend','<div class="modal"><div class="modal-card"><div class="modal-head"><h3>'+t+'</h3><button id="fecha">✕</button></div>'+corpo+'<button id="'+idBotao+'" style="margin-top:18px">'+rotulo+'</button></div></div>');
+ document.body.insertAdjacentHTML('beforeend','<div class="modal"><div class="modal-card"><div class="modal-head"><h3>'+t+'</h3><button id="fecha">✕</button></div>'+corpo+'<button type="button" id="'+idBotao+'" style="margin-top:18px">'+rotulo+'</button></div></div>');
  $('#fecha').onclick=function(){var m=$('.modal');if(m)m.remove()}}
 function opcoesClientes(sel){return db.clientes.map(function(c){return '<option value="'+c.id+'" '+(c.id===sel?'selected':'')+'>'+esc(c.nome)+'</option>'}).join('')}
 function opcoesObras(sel){return db.obras.map(function(o){return '<option value="'+o.id+'" '+(o.id===sel?'selected':'')+'>'+esc(o.nome)+' — '+esc(clienteNome(o.cliente))+'</option>'}).join('')}
@@ -89,129 +93,32 @@ function formEtapa(id){if(!db.obras.length){erro('Cadastre uma obra antes de cri
   if(id){for(var k in x)e[k]=x[k]}else{db.etapas.push(x)}
   recalcularObra(x.obra);save();var m=$('.modal');if(m)m.remove();go('Etapas')}}
 function formOrc(){if(!db.clientes.length||!db.obras.length){erro('Cadastre um cliente e uma obra antes do orçamento.');return}
- modal('Orçamento personalizado','<div class="form-grid"><label>Cliente<select id="f_cli">'+opcoesClientes()+'</select></label><label>Obra<select id="f_obra">'+opcoesObras()+'</select></label></div><div id="itens"><div class="form-grid item" style="margin-top:15px"><label>Item<input class="it_nome"></label><label>Quantidade<input class="it_qtd" type="number" value="1"></label><label>Valor unitário<input class="it_val" type="number" step="0.01"></label><label>Desconto<input class="it_desc" type="number" step="0.01" value="0"></label></div></div><button id="mais" class="outline" style="margin-top:12px">+ Item</button><div class="total" id="total">Total: R$ 0,00</div>');
+ modal('Orçamento personalizado','<div class="form-grid"><label>Cliente<select id="f_cli">'+opcoesClientes()+'</select></label><label>Obra<select id="f_obra">'+opcoesObras()+'</select></label></div><div id="itens"><div class="form-grid item" style="margin-top:15px"><label>Item<input class="it_nome"></label><label>Quantidade<input class="it_qtd" type="number" value="1"></label><label>Valor unitário<input class="it_val" type="number" step="0.01"></label><label>Desconto<input class="it_desc" type="number" step="0.01" value="0"></label></div></div><button type="button" id="mais" class="outline" style="margin-top:12px">+ Item</button><div class="total" id="total">Total: R$ 0,00</div>');
  function calc(){var t=0;$$('.item').forEach(function(i){t+=Math.max(0,(+i.querySelector('.it_qtd').value||0)*(+i.querySelector('.it_val').value||0)-(+i.querySelector('.it_desc').value||0))});$('#total').textContent='Total: '+money(t);return t}
  function wire(){$$('.item input').forEach(function(x){x.oninput=calc})}
  $('#mais').onclick=function(){$('#itens').insertAdjacentHTML('beforeend',$('.item').outerHTML);wire()};wire();
  $('#salvar').onclick=function(){var itens=$$('.item').map(function(i){return{nome:i.querySelector('.it_nome').value,qtd:+i.querySelector('.it_qtd').value,valor:+i.querySelector('.it_val').value,desconto:+i.querySelector('.it_desc').value}});
   db.orcamentos.push({id:'ORC-'+Date.now(),cliente:$('#f_cli').value,obra:$('#f_obra').value,data:new Date().toLocaleDateString('pt-BR'),itens:itens,total:calc()});save();var m=$('.modal');if(m)m.remove();go('Orçamentos')}}
+function formRegistro(){if(!db.obras.length){erro('Cadastre uma obra antes de adicionar registros.');return}
+ modal('Adicionar registro da obra','<div class="hint">Tire a foto no celular, envie para o Google Drive, WhatsApp ou Instagram e cole aqui o link. Assim o aplicativo fica leve e não trava.</div><label>Obra<select id="f_obra">'+opcoesObras()+'</select></label><label>Etapa (opcional)<select id="f_etapa"><option value="">Sem etapa</option>'+opcoesEtapas((db.obras[0]||{}).id)+'</select></label><label>Descrição<input id="f_texto" placeholder="Ex.: Instalação do quadro concluída"></label><label>Data<input id="f_data" type="date"></label><label>Tipo<select id="f_tipo"><option>Foto</option><option>Vídeo</option><option>Documento</option></select></label><label>Link do arquivo<input id="f_link" placeholder="https://drive.google.com/..." autocapitalize="none"></label>','salvarRegistro','Salvar registro');
+ var selObra=$('#f_obra'),selEtapa=$('#f_etapa');
+ selObra.onchange=function(){selEtapa.innerHTML='<option value="">Sem etapa</option>'+opcoesEtapas(selObra.value)};
+ $('#salvarRegistro').onclick=function(){
+  var texto=$('#f_texto').value.trim(),link=$('#f_link').value.trim(),data=$('#f_data').value,tipo=$('#f_tipo').value;
+  if(!texto){erro('Escreva uma descrição para o registro.');return}
+  var obraSel=selObra.value||(db.obras[0]||{}).id;if(!obraSel){erro('Selecione uma obra.');return}
+  db.midias.push({id:'MID-'+Date.now(),obra:obraSel,etapa:selEtapa.value||'',texto:texto,tipo:tipo,link:link,dataReg:data?dataBR(data):new Date().toLocaleDateString('pt-BR')});
+  if(!save()){db.midias.pop();return}
+  var m=$('.modal');if(m)m.remove();go('Mídias')}}
+window.formRegistro=formRegistro;
 function recalcularObra(obraId){var es=db.etapas.filter(function(e){return e.obra===obraId});if(!es.length)return;
  var soma=es.reduce(function(a,e){return a+(+e.peso||0)},0)||1;
  var p=Math.round(es.reduce(function(a,e){return a+(+e.peso||0)*(+e.progresso||0)},0)/soma);
  var o=db.obras.filter(function(x){return x.id===obraId})[0];if(o)o.progresso=Math.min(100,Math.max(0,p))}
-function addMedia(){if(!db.obras.length){erro('Cadastre uma obra antes de adicionar mídias.');return}
- modal('Adicionar foto ou vídeo','<label>Obra<select id="f_obra">'+opcoesObras()+'</select></label><label>Etapa (opcional)<select id="f_etapa"><option value="">Sem etapa</option>'+opcoesEtapas((db.obras[0]||{}).id)+'</select></label><label>Texto explicativo<textarea id="f_texto"></textarea></label><label>Arquivo<input id="f_arq" type="file" accept="image/*,video/*"></label>');
- var selObra=$('#f_obra'),selEtapa=$('#f_etapa');
- selObra.onchange=function(){selEtapa.innerHTML='<option value="">Sem etapa</option>'+opcoesEtapas(selObra.value)};
- $('#salvar').onclick=function(){var f=$('#f_arq').files[0];if(!f){erro('Selecione um arquivo.');return}
-  if(f.size>4e6){erro('Para manter o aplicativo leve, use arquivos de até 4 MB.');return}
-  var obraSel=selObra.value||(db.obras[0]||{}).id;if(!obraSel){erro('Selecione uma obra.');return}
-  var r=new FileReader();
-  r.onload=function(){db.midias.push({id:'MID-'+Date.now(),obra:obraSel,etapa:selEtapa.value||'',texto:$('#f_texto').value,tipo:f.type,data:r.result,dataReg:new Date().toLocaleDateString('pt-BR')});
-   if(!save()){db.midias.pop();return}
-   var m=$('.modal');if(m)m.remove();go('Mídias')};r.readAsDataURL(f)}}
 function fichaObra(id){var o=db.obras.filter(function(x){return x.id===id})[0];if(!o)return;var c=clienteObj(o.cliente);
  var etapas=db.etapas.filter(function(e){return e.obra===o.id}),orcs=db.orcamentos.filter(function(x){return x.obra===o.id}),mid=db.midias.filter(function(m){return m.obra===o.id});
- modal('Ficha da obra','<div class="grid" style="grid-template-columns:repeat(3,1fr)"><div class="card metric"><b>'+o.progresso+'%</b><span>Progresso</span></div><div class="card metric"><b>'+etapas.length+'</b><span>Etapas</span></div><div class="card metric"><b>'+mid.length+'</b><span>Mídias</span></div></div><div class="panel"><h3>'+esc(o.nome)+'</h3><p>'+esc(o.descricao||'')+'</p><p><b>Cliente:</b> '+esc(c.nome||'-')+' · '+esc(c.telefone||'sem telefone')+'</p><p><b>Endereço:</b> '+esc(o.endereco||'Não informado')+'</p><p><b>Status:</b> '+esc(o.status)+' · <b>Valor:</b> '+money(o.valor)+'</p><p><b>Início:</b> '+(o.inicio?dataBR(o.inicio):'A definir')+' · <b>Previsão:</b> '+(o.fim?dataBR(o.fim):'A definir')+'</p></div><div class="panel"><h3>Etapas</h3>'+(etapas.map(function(e){return '<div style="margin:14px 0"><b>'+esc(e.nome)+'</b><span style="float:right">'+e.progresso+'%</span><p>'+esc(e.status)+'</p><div class="bar"><i style="width:'+e.progresso+'%"></i></div></div>'}).join('')||'<div class="empty">Sem etapas.</div>')+'</div><div class="panel"><h3>Orçamentos vinculados</h3>'+(orcs.map(function(x){return '<p>'+esc(x.id)+' · '+esc(x.data)+' · '+money(x.total)+'</p>'}).join('')||'<div class="empty">Nenhum orçamento.</div>')+'</div>','fecharFicha','Fechar');
+ modal('Ficha da obra','<div class="grid" style="grid-template-columns:repeat(3,1fr)"><div class="card metric"><b>'+o.progresso+'%</b><span>Progresso</span></div><div class="card metric"><b>'+etapas.length+'</b><span>Etapas</span></div><div class="card metric"><b>'+mid.length+'</b><span>Registros</span></div></div><div class="panel"><h3>'+esc(o.nome)+'</h3><p>'+esc(o.descricao||'')+'</p><p><b>Cliente:</b> '+esc(c.nome||'-')+' · '+esc(c.telefone||'sem telefone')+'</p><p><b>Endereço:</b> '+esc(o.endereco||'Não informado')+'</p><p><b>Status:</b> '+esc(o.status)+' · <b>Valor:</b> '+money(o.valor)+'</p><p><b>Início:</b> '+(o.inicio?dataBR(o.inicio):'A definir')+' · <b>Previsão:</b> '+(o.fim?dataBR(o.fim):'A definir')+'</p></div><div class="panel"><h3>Etapas</h3>'+(etapas.map(function(e){return '<div style="margin:14px 0"><b>'+esc(e.nome)+'</b><span style="float:right">'+e.progresso+'%</span><p>'+esc(e.status)+'</p><div class="bar"><i style="width:'+e.progresso+'%"></i></div></div>'}).join('')||'<div class="empty">Sem etapas.</div>')+'</div><div class="panel"><h3>Orçamentos vinculados</h3>'+(orcs.map(function(x){return '<p>'+esc(x.id)+' · '+esc(x.data)+' · '+money(x.total)+'</p>'}).join('')||'<div class="empty">Nenhum orçamento.</div>')+'</div>','fecharFicha','Fechar');
  $('#fecharFicha').onclick=function(){var m=$('.modal');if(m)m.remove()}}
-var AZUL={r:0.043,g:0.102,b:0.165},AZUL2={r:0.043,g:0.231,b:0.376},OURO={r:0.949,g:0.788,b:0.298},CINZA={r:0.42,g:0.47,b:0.52},TINTA={r:0.09,g:0.14,b:0.19};
-function dataUrlToBytes(u){var i=u.indexOf(',');var b=atob(u.slice(i+1));var a=new Uint8Array(b.length);for(var k=0;k<b.length;k++)a[k]=b.charCodeAt(k);return a}
-function limpa(t){return String(t==null?'':t).replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu,'').replace(/\u00A0/g,' ').trim()}
-function quebra(txt,font,size,max){var ps=limpa(txt).split(/\s+/).filter(Boolean);var ls=[];var cur='';
- for(var i=0;i<ps.length;i++){var p=ps[i];var t=cur?cur+' '+p:p;if(font.widthOfTextAtSize(t,size)>max&&cur){ls.push(cur);cur=p}else{cur=t}}
- if(cur)ls.push(cur);return ls.length?ls:['']}
-async function gerarPdfObra(id){
- if(!window.PDFLib){erro('Não foi possível carregar o gerador de PDF. Verifique a internet e tente novamente.');return}
- var o=db.obras.filter(function(x){return x.id===id})[0];if(!o)return;var c=clienteObj(o.cliente);
- var etapas=db.etapas.filter(function(e){return e.obra===o.id}),orcs=db.orcamentos.filter(function(x){return x.obra===o.id}),mid=db.midias.filter(function(m){return m.obra===o.id&&(m.tipo||'').indexOf('image')===0});
- var PL=window.PDFLib;var pdf=await PL.PDFDocument.create();
- var R=await pdf.embedFont(PL.StandardFonts.Helvetica),B=await pdf.embedFont(PL.StandardFonts.HelveticaBold);
- var W=595,H=842,M=48,LARG=W-M*2;var pg=pdf.addPage([W,H]),y=H-58;
- function nova(){pg=pdf.addPage([W,H]);y=H-58}
- function rod(){pg.drawText(limpa((db.config.empresa||'')+'   ·   Página '+pdf.getPageCount()),{x:M,y:30,size:8,font:R,color:CINZA})}
- function g(h){if(y-h<64){rod();nova()}}
- function linha(txt,opt){opt=opt||{};var size=opt.size||10.5,font=opt.font||R,color=opt.color||TINTA,space=opt.space==null?4:opt.space,lead=opt.lead||1.45;
-  var ls=quebra(txt,font,size,LARG);g(ls.length*size*lead+space);
-  ls.forEach(function(l){pg.drawText(l,{x:M,y:y,size:size,font:font,color:color});y-=size*lead});y-=space}
- function tit(t){g(30);y-=8;pg.drawText(limpa(t),{x:M,y:y,size:13,font:B,color:AZUL2});y-=8;pg.drawLine({start:{x:M,y:y},end:{x:W-M,y:y},thickness:1,color:OURO});y-=16}
- pg.drawRectangle({x:0,y:H-34,width:W,height:34,color:AZUL});
- pg.drawText('TONY ELETRICISTA',{x:M,y:H-24,size:12,font:B,color:OURO});
- y=H-70;pg.drawText('RELATÓRIO DE OBRA',{x:M,y:y,size:20,font:B,color:AZUL});y-=22;
- linha((db.config.empresa||'')+(db.config.responsavel?'  ·  Responsável: '+db.config.responsavel:''),{size:9.5,color:CINZA,space:1});
- linha((db.config.contato?'Contato: '+db.config.contato+'  ·  ':'')+'Emitido em '+new Date().toLocaleDateString('pt-BR'),{size:9.5,color:CINZA,space:12});
- tit('DADOS DA OBRA');
- linha('OBRA: '+o.nome,{font:B,size:12,space:2});
- linha('Código: '+o.id+'   ·   Status: '+o.status+'   ·   Progresso: '+o.progresso+'%',{size:10,space:1});
- linha('Endereço: '+(o.endereco||'Não informado'),{size:10,space:1});
- linha('Início: '+(o.inicio?dataBR(o.inicio):'A definir')+'   ·   Previsão: '+(o.fim?dataBR(o.fim):'A definir'),{size:10,space:1});
- linha('Valor contratado: '+money(o.valor),{size:10,space:2});
- if(o.descricao)linha(o.descricao,{size:10,space:2});
- tit('CLIENTE');
- linha(c.nome||'-',{font:B,size:11,space:2});
- linha('Telefone: '+(c.telefone||'-')+'   ·   E-mail: '+(c.email||'-'),{size:10,space:1});
- linha('Endereço: '+(c.endereco||'-'),{size:10,space:2});
- tit('ETAPAS E ANDAMENTO');
- if(etapas.length){etapas.forEach(function(e){linha(e.nome+'  —  '+e.status+'  —  '+e.progresso+'% concluído',{size:10,space:2})})}else{linha('Nenhuma etapa registrada.',{size:10,color:CINZA})}
- tit('ORÇAMENTOS VINCULADOS');
- if(orcs.length){orcs.forEach(function(x){linha(x.id+'  —  '+x.data+'  —  '+money(x.total),{size:10,space:2})})}else{linha('Nenhum orçamento registrado.',{size:10,color:CINZA})}
- if(orcs.length){tit('DETALHE DO ÚLTIMO ORÇAMENTO');var u=orcs[orcs.length-1];
-  (u.itens||[]).forEach(function(i,n){linha(String(n+1).padStart(2,'0')+'  '+(i.nome||'Item')+'   '+i.qtd+' x '+money(i.valor)+'   =   '+money(i.qtd*i.valor-i.desconto),{size:9.5,space:1.5})});
-  linha('TOTAL: '+money(u.total),{font:B,size:11,space:8})}
- if(mid.length){tit('REGISTRO FOTOGRÁFICO');
-  linha(mid.length+' foto(s) registrada(s) nesta obra.',{size:9.5,color:CINZA,space:8});
-  var px=M,py=y;
-  for(var j=0;j<mid.length&&j<12;j++){var m=mid[j];var emb=null;
-   try{emb=await pdf.embedJpg(dataUrlToBytes(m.data))}catch(e){emb=null}
-   if(!emb)continue;
-   var lw=150,lh=Math.min(112,lw*emb.height/emb.width);
-   if(py-lh-24<70){rod();nova();px=M;py=y}
-   pg.drawImage(emb,{x:px,y:py-lh,width:lw,height:lh});
-   pg.drawText(limpa((m.texto||etapaNome(m.etapa)||'Registro')).slice(0,34),{x:px,y:py-lh-11,size:7.5,font:R,color:CINZA});
-   px+=lw+14;if(px+150>W-M){px=M;py-=lh+28}}
-  if(mid.length>12)linha('Mais '+(mid.length-12)+' foto(s) não incluída(s) neste PDF.',{size:9,color:CINZA,space:6})}
- g(70);y-=10;tit('OBSERVAÇÕES E ASSINATURA');
- linha('Este relatório reflete o andamento registrado até a data de emissão. Fotos, medições e prazos podem ser atualizados nas próximas visitas técnicas.',{size:9.5,space:20});
- pg.drawLine({start:{x:M,y:y},end:{x:M+220,y:y},thickness:0.8,color:CINZA});y-=12;
- linha('Assinatura do responsável — '+(db.config.empresa||''),{size:9,color:CINZA});
- rod();var bytes=await pdf.save();await compartilhar(bytes,'relatorio-'+o.id+'.pdf')}
-async function gerarPdfOrcamento(id){
- if(!window.PDFLib){erro('Não foi possível carregar o gerador de PDF. Verifique a internet e tente novamente.');return}
- var o=db.orcamentos.filter(function(x){return x.id===id})[0];if(!o)return;var c=clienteObj(o.cliente);
- var PL=window.PDFLib;var pdf=await PL.PDFDocument.create();
- var R=await pdf.embedFont(PL.StandardFonts.Helvetica),B=await pdf.embedFont(PL.StandardFonts.HelveticaBold);
- var W=595,H=842,M=48,LARG=W-M*2;var pg=pdf.addPage([W,H]),y=H-58;
- function nova(){pg=pdf.addPage([W,H]);y=H-58}
- function rod(){pg.drawText(limpa((db.config.empresa||'')+'   ·   Página '+pdf.getPageCount()),{x:M,y:30,size:8,font:R,color:CINZA})}
- function g(h){if(y-h<64){rod();nova()}}
- function linha(txt,opt){opt=opt||{};var size=opt.size||10.5,font=opt.font||R,color=opt.color||TINTA,space=opt.space==null?4:opt.space,lead=opt.lead||1.45;
-  var ls=quebra(txt,font,size,LARG);g(ls.length*size*lead+space);
-  ls.forEach(function(l){pg.drawText(l,{x:M,y:y,size:size,font:font,color:color});y-=size*lead});y-=space}
- function tit(t){g(30);y-=8;pg.drawText(limpa(t),{x:M,y:y,size:13,font:B,color:AZUL2});y-=8;pg.drawLine({start:{x:M,y:y},end:{x:W-M,y:y},thickness:1,color:OURO});y-=16}
- pg.drawRectangle({x:0,y:H-34,width:W,height:34,color:AZUL});
- pg.drawText('TONY ELETRICISTA',{x:M,y:H-24,size:12,font:B,color:OURO});
- y=H-70;pg.drawText('ORÇAMENTO',{x:M,y:y,size:20,font:B,color:AZUL});
- pg.drawText(limpa(o.id),{x:W-M-B.widthOfTextAtSize(o.id,12)-2,y:y,size:12,font:B,color:AZUL2});y-=24;
- linha((db.config.empresa||'')+(db.config.contato?'  ·  Contato: '+db.config.contato:''),{size:9.5,color:CINZA,space:1});
- linha('Data: '+o.data+'   ·   Validade: 15 dias',{size:9.5,color:CINZA,space:12});
- tit('CLIENTE');
- linha(c.nome||'-',{font:B,size:11,space:2});
- linha('Telefone: '+(c.telefone||'-')+'   ·   Endereço: '+(c.endereco||'-'),{size:10,space:1});
- linha('Obra: '+obraNome(o.obra),{size:10,space:4});
- tit('ITENS DO ORÇAMENTO');
- (o.itens||[]).forEach(function(i,n){linha(String(n+1).padStart(2,'0')+'  '+(i.nome||'Item'),{font:B,size:10,space:1});
-  linha(i.qtd+' x '+money(i.valor)+'  −  desconto '+money(i.desconto)+'  =  '+money(i.qtd*i.valor-i.desconto),{size:9.5,color:CINZA,space:5})});
- y-=8;g(30);
- pg.drawRectangle({x:M,y:y-24,width:LARG,height:30,color:{r:0.95,g:0.96,b:0.97}});
- pg.drawText('TOTAL',{x:M+12,y:y-13,size:11,font:B,color:AZUL2});
- pg.drawText(limpa(money(o.total)),{x:W-M-B.widthOfTextAtSize(money(o.total),13)-12,y:y-14,size:13,font:B,color:AZUL2});y-=44;
- linha('Condições: materiais e prazos sujeitos a confirmação. Validade de 15 dias a partir da data de emissão.',{size:9,color:CINZA,space:20});
- pg.drawLine({start:{x:M,y:y},end:{x:M+220,y:y},thickness:0.8,color:CINZA});y-=12;
- linha('Assinatura do responsável — '+(db.config.empresa||''),{size:9,color:CINZA});
- rod();var bytes=await pdf.save();await compartilhar(bytes,'orcamento-'+o.id+'.pdf')}
-async function compartilhar(bytes,nome){var blob=new Blob([bytes],{type:'application/pdf'});
- try{var file=new File([blob],nome,{type:'application/pdf'});
-  if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:nome});return}}catch(e){}
- var url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=nome;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url)},5000)}
 function bind(){
  var novo=$('#novo');
  if(novo)novo.onclick=function(){var f={obra:formObra,cliente:formCliente,orcamento:formOrc,etapa:formEtapa}[novo.dataset.tipo]||formObra;f()};
@@ -219,10 +126,8 @@ function bind(){
  function onAll(attr,fn){$$('[data-'+attr+']').forEach(function(b){b.onclick=function(){fn(b)}})}
  onAll('editobra',function(b){formObra(b.dataset.editobra)});
  onAll('fichaobra',function(b){fichaObra(b.dataset.fichaobra)});
- onAll('pdfobra',function(b){gerarPdfObra(b.dataset.pdfobra)});
  onAll('editetapa',function(b){formEtapa(b.dataset.editetapa)});
  onAll('editcli',function(b){formCliente(b.dataset.editcli)});
- onAll('pdforc',function(b){gerarPdfOrcamento(b.dataset.pdforc)});
  onAll('vieworc',function(b){var o=db.orcamentos.filter(function(x){return x.id===b.dataset.vieworc})[0];if(!o)return;
   modal('Orçamento '+o.id,'<h3>'+esc(clienteNome(o.cliente))+'</h3>'+(o.itens||[]).map(function(i){return '<p>'+esc(i.nome)+' - '+i.qtd+' x '+money(i.valor)+' = '+money(i.qtd*i.valor-i.desconto)+'</p>'}).join('')+'<div class="total">'+money(o.total)+'</div>','fechar2','Fechar');
   $('#fechar2').onclick=function(){var m=$('.modal');if(m)m.remove()}});
@@ -231,8 +136,8 @@ function bind(){
  onAll('deletapa',function(b){if(confirm('Excluir esta etapa?')){var e=db.etapas.filter(function(x){return x.id===b.dataset.deletapa})[0];db.etapas=db.etapas.filter(function(x){return x.id!==b.dataset.deletapa});if(e)recalcularObra(e.obra);save();go('Etapas')}});
  onAll('delcli',function(b){if(confirm('Excluir este cliente?')){db.clientes=db.clientes.filter(function(x){return x.id!==b.dataset.delcli});save();go('Clientes')}});
  onAll('delorc',function(b){if(confirm('Excluir este orçamento?')){db.orcamentos=db.orcamentos.filter(function(x){return x.id!==b.dataset.delorc});save();go('Orçamentos')}});
- onAll('delmedia',function(b){if(confirm('Excluir esta mídia?')){db.midias=db.midias.filter(function(x){return x.id!==b.dataset.delmedia});save();go(page)}});
- if($('#addMedia'))$('#addMedia').onclick=addMedia;
+ onAll('delmedia',function(b){if(confirm('Excluir este registro?')){db.midias=db.midias.filter(function(x){return x.id!==b.dataset.delmedia});save();go('Mídias')}});
+ if($('#addMedia'))$('#addMedia').onclick=formRegistro;
  if($('#salvarCfg'))$('#salvarCfg').onclick=function(){db.config.empresa=$('#cfgEmpresa').value;db.config.responsavel=$('#cfgResp').value;db.config.contato=$('#cfgContato').value;db.config.instagram=$('#cfgInsta').value;save();erro('Dados do relatório atualizados.')};
  if($('#salvarAdmin'))$('#salvarAdmin').onclick=function(){var l=$('#adminLogin').value.trim(),s=$('#adminSenha').value;
   if(!l){erro('Informe o login do administrador.');return}
@@ -244,6 +149,9 @@ function bind(){
   c.login=l;if(s)c.senha=s;save();document.querySelector('[data-senhacli="'+c.id+'"]').value='';erro('Acesso do cliente atualizado.')})}
 function init(){
  if($('#aviso'))$('#aviso').classList.add('hidden');
+ if($('#entrar'))$('#entrar').onclick=function(ev){if(ev&&ev.preventDefault)ev.preventDefault();fazerLogin()};
+ if($('#senha'))$('#senha').onkeydown=function(e){if(e.key==='Enter')fazerLogin()};
+ if($('#usuario'))$('#usuario').onkeydown=function(e){if(e.key==='Enter'&&$('#senha'))$('#senha').focus()};
  if($('#sair'))$('#sair').onclick=logout;
  if($('#menu'))$('#menu').onclick=openMenu;
  if($('#fecharMenu'))$('#fecharMenu').onclick=closeMenu;
