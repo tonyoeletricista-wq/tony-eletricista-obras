@@ -1,10 +1,7 @@
-const C='tony-v9';
+const C='tony-v11';
 self.addEventListener('install',e=>self.skipWaiting());
 self.addEventListener('activate',e=>e.waitUntil((async()=>{
-  await self.clients.claim();
-  const ks=await caches.keys();
-  for(const k of ks){try{await caches.delete(k)}catch(err){}}
-  const ws=await self.clients.matchAll({type:'window'});
-  for(const w of ws){try{w.navigate(w.url)}catch(err){}}
+ try{await self.clients.claim()}catch(x){}
+ try{const ks=await caches.keys();for(const k of ks){if(k.indexOf('tony')===0){await caches.delete(k)}}}catch(x){}
 })()));
 self.addEventListener('fetch',e=>{});
